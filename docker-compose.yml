@@ -1,0 +1,21 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      # backend/cmd/server/main.go only allows CORS from http://localhost:5173,
+      # so the host-side ports below must stay 8080/5173.
+      - "8080:8080"
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
