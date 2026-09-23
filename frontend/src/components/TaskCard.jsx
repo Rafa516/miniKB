@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDraggable } from "@dnd-kit/core";
 
 function TaskCard({ task, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false);
@@ -6,6 +7,19 @@ function TaskCard({ task, onUpdate, onDelete }) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const [status, setStatus] = useState(task.status);
+
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+    disabled: editing,
+  });
+
+  const dragStyle = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: isDragging ? 10 : undefined,
+        opacity: isDragging ? 0.6 : undefined,
+      }
+    : undefined;
 
   async function handleUpdate(event) {
     event.preventDefault();
@@ -17,6 +31,16 @@ function TaskCard({ task, onUpdate, onDelete }) {
     });
 
     setEditing(false);
+  }
+
+  function handleDelete() {
+    const confirmed = window.confirm(
+      `Excluir a tarefa "${task.title}"? Essa ação não pode ser desfeita.`
+    );
+
+    if (confirmed) {
+      onDelete(task.id);
+    }
   }
 
   if (editing) {
@@ -58,7 +82,13 @@ function TaskCard({ task, onUpdate, onDelete }) {
   }
 
   return (
-    <div className="task-card">
+    <div
+      className="task-card"
+      ref={setNodeRef}
+      style={dragStyle}
+      {...listeners}
+      {...attributes}
+    >
       <h3>{task.title}</h3>
 
       {task.description && (
@@ -66,11 +96,17 @@ function TaskCard({ task, onUpdate, onDelete }) {
       )}
 
       <div className="task-actions">
-        <button onClick={() => setEditing(true)}>
+        <button
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => setEditing(true)}
+        >
           Editar
         </button>
 
-        <button onClick={() => onDelete(task.id)}>
+        <button
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={handleDelete}
+        >
           Excluir
         </button>
       </div>

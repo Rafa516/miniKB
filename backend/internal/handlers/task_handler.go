@@ -21,8 +21,43 @@ func NewTaskHandler(repo *repository.TaskRepository) *TaskHandler {
 	}
 }
 
+// GetTasks retorna todas as tarefas por padrão (comportamento original). Se
+// os parâmetros de query "page" e/ou "pageSize" forem informados, a resposta
+// passa a ser paginada (mesmo formato de array, com o total na resposta via
+// cabeçalho X-Total-Count) — sem quebrar quem já consumia a API sem esses
+// parâmetros.
 func (h *TaskHandler) GetTasks(w http.ResponseWriter, r *http.Request) {
-	tasks, err := h.Repository.GetAll()
+	query := r.URL.Query()
+	pageParam := query.Get("page")
+	pageSizeParam := query.Get("pageSize")
+
+	var (
+		tasks []models.Task
+		err   error
+	)
+
+	if pageParam == "" && pageSizeParam == "" {
+		tasks, err = h.Repository.GetAll()
+	} else {
+		page, convErr := strconv.Atoi(pageParam)
+		if convErr != nil || page < 1 {
+			page = 1
+		}
+
+		pageSize, convErr := strconv.Atoi(pageSizeParam)
+		if convErr != nil || pageSize < 1 {
+			pageSize = 20
+		}
+
+		var total int
+
+		tasks, total, err = h.Repository.GetPage(page, pageSize)
+		if err == nil {
+			w.Header().Set("X-Total-Count", strconv.Itoa(total))
+			w.Header().Set("X-Page", strconv.Itoa(page))
+			w.Header().Set("X-Page-Size", strconv.Itoa(pageSize))
+		}
+	}
 
 	if err != nil {
 		http.Error(w, "Erro ao buscar tarefas", http.StatusInternalServerError)

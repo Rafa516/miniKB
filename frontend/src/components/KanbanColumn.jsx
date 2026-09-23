@@ -1,3 +1,4 @@
+import { useDroppable } from "@dnd-kit/core";
 import TaskCard from "./TaskCard";
 
 function KanbanColumn({
@@ -11,8 +12,13 @@ function KanbanColumn({
     (task) => task.status === status
   );
 
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+
   return (
-    <section className={`kanban-column ${status}`}>
+    <section
+      className={`kanban-column ${status}${isOver ? " drag-over" : ""}`}
+      ref={setNodeRef}
+    >
       <div className="column-header">
         <h2>{title}</h2>
 

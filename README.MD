@@ -600,17 +600,20 @@ Isso facilita manutenção e evolução da aplicação.
 
 Como evolução futura do projeto:
 
-* [ ] Drag and Drop entre colunas
-* [ ] Testes automatizados no backend
-* [ ] Testes automatizados no frontend
-* [ ] Paginação
-* [ ] Autenticação de usuários
-* [ ] Docker
-* [ ] Deploy da aplicação
-* [ ] Banco PostgreSQL
-* [ ] Filtros e busca de tarefas
-* [ ] Confirmação antes da exclusão
-* [ ] Mensagens de sucesso e erro mais detalhadas
+* [x] Drag and Drop entre colunas
+* [x] Testes automatizados no backend
+* [x] Testes automatizados no frontend
+* [x] Paginação
+* [x] Autenticação de usuários
+* [x] Docker
+* [ ] Deploy da aplicação — não incluído nesta rodada: depende de criar conta em um serviço de hospedagem (Render, Fly.io, Railway etc.), o que só o mantenedor do projeto pode fazer.
+* [ ] Banco PostgreSQL — não incluído nesta rodada: é uma migração de banco, não um ajuste pequeno. Ver [MELHORIAS.md](MELHORIAS.md).
+* [x] Filtros e busca de tarefas
+* [x] Confirmação antes da exclusão
+* [x] Mensagens de sucesso e erro mais detalhadas
+
+> Detalhes de cada item marcado (o que foi feito e por quê) estão em [MELHORIAS.md](MELHORIAS.md)
+> e [DOCKER.md](DOCKER.md), nesta branch (`melhorias`).
 
 ---
 
