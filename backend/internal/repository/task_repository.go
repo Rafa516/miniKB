@@ -6,6 +6,8 @@ import (
 	"minikb/backend/internal/models"
 )
 
+// TaskRepository é a única camada do código que sabe escrever SQL. Os
+// handlers chamam esses métodos sem saber que por baixo existe SQLite.
 type TaskRepository struct {
 	DB *sql.DB
 }
@@ -16,6 +18,9 @@ func NewTaskRepository(db *sql.DB) *TaskRepository {
 	}
 }
 
+// ---------------------------------------------------------------------
+// GetAll busca todas as tarefas, das mais recentes para as mais antigas.
+// ---------------------------------------------------------------------
 func (r *TaskRepository) GetAll() ([]models.Task, error) {
 	query := `
 		SELECT id, title, description, status, created_at
@@ -30,6 +35,8 @@ func (r *TaskRepository) GetAll() ([]models.Task, error) {
 
 	defer rows.Close()
 
+	// Começa com uma slice vazia (não nil) para que a API sempre devolva
+	// "[]" em vez de "null" quando não houver tarefas.
 	tasks := make([]models.Task, 0)
 
 	for rows.Next() {
@@ -53,6 +60,10 @@ func (r *TaskRepository) GetAll() ([]models.Task, error) {
 	return tasks, nil
 }
 
+// ---------------------------------------------------------------------
+// Create insere uma tarefa nova e devolve ela já com o ID e a data de
+// criação gerados pelo banco.
+// ---------------------------------------------------------------------
 func (r *TaskRepository) Create(task models.Task) (models.Task, error) {
 	query := `
 		INSERT INTO tasks (title, description, status)
@@ -70,6 +81,7 @@ func (r *TaskRepository) Create(task models.Task) (models.Task, error) {
 		return models.Task{}, err
 	}
 
+	// AUTOINCREMENT: o ID da linha recém-inserida.
 	id, err := result.LastInsertId()
 	if err != nil {
 		return models.Task{}, err
@@ -77,6 +89,8 @@ func (r *TaskRepository) Create(task models.Task) (models.Task, error) {
 
 	task.ID = int(id)
 
+	// created_at é preenchido pelo banco (DEFAULT CURRENT_TIMESTAMP), então
+	// precisa de uma segunda consulta para saber o valor exato gravado.
 	err = r.DB.QueryRow(`
 		SELECT created_at
 		FROM tasks
@@ -90,6 +104,9 @@ func (r *TaskRepository) Create(task models.Task) (models.Task, error) {
 	return task, nil
 }
 
+// ---------------------------------------------------------------------
+// Update substitui título, descrição e status de uma tarefa existente.
+// ---------------------------------------------------------------------
 func (r *TaskRepository) Update(id int, task models.Task) error {
 	query := `
 		UPDATE tasks
@@ -107,6 +124,10 @@ func (r *TaskRepository) Update(id int, task models.Task) error {
 
 	return err
 }
+
+// ---------------------------------------------------------------------
+// Delete remove uma tarefa pelo ID.
+// ---------------------------------------------------------------------
 func (r *TaskRepository) Delete(id int) error {
 	query := `
 		DELETE FROM tasks

@@ -1,12 +1,19 @@
 import { useState } from "react";
 
+// TaskCard mostra uma tarefa dentro da coluna e também funciona como o
+// formulário de edição dela — os dois modos vivem no mesmo componente,
+// controlados pelo estado "editing".
 function TaskCard({ task, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false);
 
+  // Estado local de edição, pré-preenchido com os valores atuais da
+  // tarefa. Só é enviado para o backend quando o formulário é salvo.
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const [status, setStatus] = useState(task.status);
 
+  // Salva a edição: chama onUpdate (recebido do App.jsx) e volta pro
+  // modo de visualização.
   async function handleUpdate(event) {
     event.preventDefault();
 
@@ -19,6 +26,9 @@ function TaskCard({ task, onUpdate, onDelete }) {
     setEditing(false);
   }
 
+  // -----------------------------------------------------------------
+  // Modo edição: formulário com os mesmos campos do TaskForm.
+  // -----------------------------------------------------------------
   if (editing) {
     return (
       <form className="task-card" onSubmit={handleUpdate}>
@@ -57,6 +67,10 @@ function TaskCard({ task, onUpdate, onDelete }) {
     );
   }
 
+  // -----------------------------------------------------------------
+  // Modo visualização: título, descrição (se houver) e os botões de
+  // ação. "Excluir" chama onDelete direto, sem confirmação.
+  // -----------------------------------------------------------------
   return (
     <div className="task-card">
       <h3>{task.title}</h3>
