@@ -1,13 +1,26 @@
 import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 
+// TaskCard mostra uma tarefa dentro da coluna e também funciona como o
+// formulário de edição dela — os dois modos vivem no mesmo componente,
+// controlados pelo estado "editing". Também é o card "arrastável" do
+// drag and drop entre colunas.
 function TaskCard({ task, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false);
 
+  // Estado local de edição, pré-preenchido com os valores atuais da
+  // tarefa. Só é enviado para o backend quando o formulário é salvo.
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const [status, setStatus] = useState(task.status);
 
+  // -----------------------------------------------------------------
+  // @dnd-kit: torna este card arrastável. `id: task.id` é o que chega
+  // em `active.id` no handleDragEnd do App.jsx. Fica desabilitado
+  // enquanto o card está em modo de edição, para não competir com o
+  // clique nos campos do formulário. `transform` é a posição do card
+  // enquanto está sendo arrastado (aplicada no style abaixo).
+  // -----------------------------------------------------------------
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     disabled: editing,
@@ -21,6 +34,8 @@ function TaskCard({ task, onUpdate, onDelete }) {
       }
     : undefined;
 
+  // Salva a edição: chama onUpdate (recebido do App.jsx) e volta pro
+  // modo de visualização.
   async function handleUpdate(event) {
     event.preventDefault();
 
@@ -33,6 +48,8 @@ function TaskCard({ task, onUpdate, onDelete }) {
     setEditing(false);
   }
 
+  // Pede confirmação antes de excluir — evita apagar por engano com um
+  // clique sem querer.
   function handleDelete() {
     const confirmed = window.confirm(
       `Excluir a tarefa "${task.title}"? Essa ação não pode ser desfeita.`
@@ -43,6 +60,9 @@ function TaskCard({ task, onUpdate, onDelete }) {
     }
   }
 
+  // -----------------------------------------------------------------
+  // Modo edição: formulário com os mesmos campos do TaskForm.
+  // -----------------------------------------------------------------
   if (editing) {
     return (
       <form className="task-card" onSubmit={handleUpdate}>
@@ -81,6 +101,13 @@ function TaskCard({ task, onUpdate, onDelete }) {
     );
   }
 
+  // -----------------------------------------------------------------
+  // Modo visualização: título, descrição (se houver) e os botões de
+  // ação. O `ref`/`listeners`/`attributes` do @dnd-kit ficam no `div`
+  // raiz, para o card inteiro ser a "alça" de arrastar — por isso os
+  // botões usam onPointerDown com stopPropagation, senão um clique
+  // neles seria interpretado como início de um arraste.
+  // -----------------------------------------------------------------
   return (
     <div
       className="task-card"

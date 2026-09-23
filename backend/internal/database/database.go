@@ -10,6 +10,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Connect abre (criando se não existir) o arquivo kanban.db e deixa o
+// banco pronto para uso: cria as tabelas que faltarem, aplica migrações
+// em bancos mais antigos e garante que o usuário administrador exista.
 func Connect() (*sql.DB, error) {
 	db, err := sql.Open("sqlite", "kanban.db")
 	if err != nil {
@@ -31,6 +34,9 @@ func Connect() (*sql.DB, error) {
 	return db, nil
 }
 
+// createTables cria as tabelas "tasks", "users" e "sessions" caso ainda
+// não existam. Como usa "IF NOT EXISTS", é seguro chamar isso toda vez
+// que o servidor inicia — em um banco já existente, não faz nada.
 func createTables(db *sql.DB) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS tasks (

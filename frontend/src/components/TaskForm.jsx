@@ -1,10 +1,14 @@
 import { useState } from "react";
 
+// TaskForm é o formulário do topo da página, usado só para criar tarefas
+// novas (editar é feito direto no card, em TaskCard.jsx).
 function TaskForm({ onTaskCreated }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("todo");
 
+  // Ao enviar: monta o objeto da tarefa, avisa o componente pai (App.jsx)
+  // via onTaskCreated, e limpa os campos para o próximo cadastro.
   function handleSubmit(event) {
     event.preventDefault();
 
@@ -23,6 +27,7 @@ function TaskForm({ onTaskCreated }) {
 
   return (
     <form className="task-form" onSubmit={handleSubmit}>
+      {/* Campos controlados: o valor sempre vem do estado do React */}
       <input
         type="text"
         placeholder="Título da tarefa"

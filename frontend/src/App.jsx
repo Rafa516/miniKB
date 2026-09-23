@@ -16,7 +16,13 @@ import Login from "./components/Login";
 
 import "./App.css";
 
+// App é o componente raiz. Além do estado das tarefas (como na versão
+// simples do projeto), aqui ele também controla a sessão do usuário
+// (login/cadastro) e a busca — tudo centralizado aqui e repassado para
+// os componentes filhos via props.
 function App() {
+  // Sessão: enquanto `checkingSession` é true, não sabemos ainda se o
+  // usuário já está logado (cookie válido) ou não.
   const [checkingSession, setCheckingSession] = useState(true);
   const [user, setUser] = useState(null);
 
@@ -26,6 +32,11 @@ function App() {
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
 
+  // -----------------------------------------------------------------
+  // Ao montar o app, pergunta pro backend (GET /me) se já existe uma
+  // sessão válida — assim quem já logou antes não precisa logar de novo
+  // a cada vez que abre a página.
+  // -----------------------------------------------------------------
   useEffect(() => {
     async function checkSession() {
       const currentUser = await getCurrentUser();
@@ -36,6 +47,11 @@ function App() {
     checkSession();
   }, []);
 
+  // -----------------------------------------------------------------
+  // Só carrega as tarefas depois de confirmar que há um usuário logado
+  // (esse efeito roda de novo sempre que `user` muda — inclusive ao
+  // logar/deslogar).
+  // -----------------------------------------------------------------
   useEffect(() => {
     if (!user) {
       return;
@@ -56,6 +72,11 @@ function App() {
     loadTasks();
   }, [user]);
 
+  // -----------------------------------------------------------------
+  // Busca: filtra a lista de tarefas no navegador mesmo (sem chamar a
+  // API de novo), por título ou descrição. useMemo evita refazer o
+  // filtro em todo re-render, só quando `tasks` ou `search` mudam.
+  // -----------------------------------------------------------------
   const filteredTasks = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -70,6 +91,11 @@ function App() {
     );
   }, [tasks, search]);
 
+  // -----------------------------------------------------------------
+  // Login e cadastro: em caso de sucesso, o backend já devolve os
+  // dados do usuário (nome/usuário) e cria o cookie de sessão — só
+  // precisamos guardar esse usuário no estado.
+  // -----------------------------------------------------------------
   async function handleLogin(username, password) {
     const loggedUser = await login(username, password);
     setUser(loggedUser);
@@ -86,6 +112,11 @@ function App() {
     setTasks([]);
   }
 
+  // -----------------------------------------------------------------
+  // Ações sobre tarefas: cada uma limpa o erro anterior antes de
+  // tentar, e mostra um aviso de sucesso/erro no lugar de esconder a
+  // tela inteira (diferente da versão sem essas melhorias).
+  // -----------------------------------------------------------------
   async function handleTaskCreated(task) {
     setError("");
 
@@ -133,6 +164,14 @@ function App() {
     }
   }
 
+  // -----------------------------------------------------------------
+  // Drag and drop: o @dnd-kit chama isso ao soltar um card. `active.id`
+  // é o id da tarefa arrastada, `over.id` é o id da coluna onde foi
+  // solta (as colunas usam o próprio status como id — ver
+  // KanbanColumn.jsx). Se soltou fora de uma coluna, ou na mesma coluna
+  // de onde saiu, não faz nada; senão, reaproveita handleTaskUpdate
+  // para persistir o novo status.
+  // -----------------------------------------------------------------
   function handleDragEnd(event) {
     const { active, over } = event;
 
@@ -150,11 +189,16 @@ function App() {
     handleTaskUpdate(task.id, { ...task, status: newStatus });
   }
 
+  // Mostra um aviso de sucesso por 3 segundos e depois some sozinho.
   function showMessage(text) {
     setMessage(text);
     setTimeout(() => setMessage(""), 3000);
   }
 
+  // -----------------------------------------------------------------
+  // Ordem de decisão do que renderizar: checando sessão → sem login →
+  // carregando tarefas → quadro completo.
+  // -----------------------------------------------------------------
   if (checkingSession) {
     return <p>Carregando...</p>;
   }
@@ -176,6 +220,7 @@ function App() {
             <p>Gerencie suas tarefas</p>
           </div>
 
+          {/* Nome do usuário logado + botão de sair */}
           <div className="user-bar">
             <span>Olá, {user.name}</span>
             <button onClick={handleLogout}>Sair</button>
@@ -183,11 +228,13 @@ function App() {
         </div>
       </header>
 
+      {/* Avisos: aparecem por cima do quadro, sem esconder o resto da tela */}
       {error && <p className="error-banner">{error}</p>}
       {message && <p className="success-banner">{message}</p>}
 
       <TaskForm onTaskCreated={handleTaskCreated} />
 
+      {/* Campo de busca: filtra `filteredTasks`, usado nas 3 colunas abaixo */}
       <input
         type="text"
         className="search-input"
@@ -196,6 +243,8 @@ function App() {
         onChange={(event) => setSearch(event.target.value)}
       />
 
+      {/* DndContext: envolve as colunas para habilitar arrastar/soltar
+          cards entre elas (ver handleDragEnd acima) */}
       <DndContext onDragEnd={handleDragEnd}>
         <div className="kanban-board">
           <KanbanColumn

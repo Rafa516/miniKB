@@ -1,3 +1,8 @@
+// API_URL: endereço do backend. Se a variável de ambiente VITE_API_URL
+// não for definida no build, é calculada a partir do endereço usado para
+// abrir o site (protocolo + hostname) na porta 8080 — assim funciona tanto
+// em localhost quanto acessando por outro IP da rede, sem precisar mexer
+// em código.
 const API_URL =
   import.meta.env.VITE_API_URL ||
   `${window.location.protocol}//${window.location.hostname}:8080`;
@@ -13,6 +18,14 @@ async function readErrorMessage(response, fallback) {
   }
 }
 
+// ---------------------------------------------------------------------
+// Autenticação. "credentials: include" é obrigatório em todas as
+// chamadas (inclusive nas de tarefas, mais abaixo) para o navegador
+// enviar/receber o cookie de sessão HttpOnly do backend.
+// ---------------------------------------------------------------------
+
+// POST /register — cria a conta e já efetua login (o backend devolve o
+// cookie de sessão junto).
 export async function register(name, username, password) {
   const response = await fetch(`${API_URL}/register`, {
     method: "POST",
@@ -28,6 +41,7 @@ export async function register(name, username, password) {
   return response.json();
 }
 
+// POST /login
 export async function login(username, password) {
   const response = await fetch(`${API_URL}/login`, {
     method: "POST",
@@ -43,6 +57,7 @@ export async function login(username, password) {
   return response.json();
 }
 
+// POST /logout — encerra a sessão atual no backend e limpa o cookie.
 export async function logout() {
   await fetch(`${API_URL}/logout`, {
     method: "POST",
@@ -50,6 +65,9 @@ export async function logout() {
   });
 }
 
+// GET /me — usado ao carregar a página para saber se já existe uma sessão
+// válida (cookie ainda não expirado). Devolve null em vez de lançar erro,
+// já que "não estar logado" é um resultado esperado aqui, não uma falha.
 export async function getCurrentUser() {
   const response = await fetch(`${API_URL}/me`, {
     credentials: "include",
@@ -62,6 +80,12 @@ export async function getCurrentUser() {
   return response.json();
 }
 
+// ---------------------------------------------------------------------
+// Tarefas. Todas as chamadas exigem sessão válida (o backend responde
+// 401 sem o cookie), por isso também usam credentials: "include".
+// ---------------------------------------------------------------------
+
+// GET /tasks
 export async function getTasks() {
   const response = await fetch(`${API_URL}/tasks`, {
     credentials: "include",
@@ -74,6 +98,7 @@ export async function getTasks() {
   return response.json();
 }
 
+// POST /tasks
 export async function createTask(task) {
   const response = await fetch(`${API_URL}/tasks`, {
     method: "POST",
@@ -91,6 +116,7 @@ export async function createTask(task) {
   return response.json();
 }
 
+// PUT /tasks/:id
 export async function updateTask(id, task) {
   const response = await fetch(`${API_URL}/tasks/${id}`, {
     method: "PUT",
@@ -106,6 +132,7 @@ export async function updateTask(id, task) {
   }
 }
 
+// DELETE /tasks/:id
 export async function deleteTask(id) {
   const response = await fetch(`${API_URL}/tasks/${id}`, {
     method: "DELETE",

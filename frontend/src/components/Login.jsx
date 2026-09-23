@@ -1,7 +1,10 @@
 import { useState } from "react";
 
+// Login é a tela mostrada quando ninguém está autenticado (ver App.jsx).
+// Um único componente cobre os dois fluxos — entrar e criar conta — só
+// alternando o que é mostrado conforme o estado `mode`.
 function Login({ onLogin, onRegister }) {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // "login" | "register"
 
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -9,11 +12,18 @@ function Login({ onLogin, onRegister }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Troca de modo e limpa qualquer erro da tentativa anterior.
   function switchMode(nextMode) {
     setMode(nextMode);
     setError("");
   }
 
+  // -----------------------------------------------------------------
+  // Envio do formulário: chama onLogin ou onRegister (recebidos do
+  // App.jsx) dependendo do modo atual. Os dois vêm de services/api.js
+  // e lançam erro em caso de falha (usuário/senha errados, login já
+  // em uso, etc.), que é capturado aqui e mostrado na tela.
+  // -----------------------------------------------------------------
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -44,6 +54,7 @@ function Login({ onLogin, onRegister }) {
 
         {error && <p className="error-banner">{error}</p>}
 
+        {/* Campo "Nome" só aparece no modo de cadastro */}
         {mode === "register" && (
           <input
             type="text"
@@ -77,6 +88,7 @@ function Login({ onLogin, onRegister }) {
             : "Criar conta"}
         </button>
 
+        {/* Link para alternar entre login e cadastro */}
         {mode === "login" ? (
           <button
             type="button"

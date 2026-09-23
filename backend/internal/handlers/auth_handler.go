@@ -13,9 +13,12 @@ import (
 	"minikb/backend/internal/repository"
 )
 
+// Nome do cookie de sessão e por quanto tempo ele vale.
 const sessionCookieName = "minikb_session"
 const sessionDuration = 7 * 24 * time.Hour
 
+// AuthHandler concentra as rotas HTTP de autenticação (registro, login,
+// logout, "quem sou eu") e o middleware que protege as rotas de tarefas.
 type AuthHandler struct {
 	Repository *repository.AuthRepository
 }
@@ -26,12 +29,17 @@ func NewAuthHandler(repo *repository.AuthRepository) *AuthHandler {
 	}
 }
 
+// registerRequest é o formato esperado no corpo de POST /register.
 type registerRequest struct {
 	Name     string `json:"name"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
+// ---------------------------------------------------------------------
+// POST /register — cria um usuário novo e já efetua login (cria a sessão
+// na hora, sem exigir um segundo passo de "agora faça login").
+// ---------------------------------------------------------------------
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 
@@ -43,6 +51,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Username = strings.TrimSpace(req.Username)
 
+	// Validação simples: nome e login não podem ser vazios, login e
+	// senha têm um tamanho mínimo.
 	if req.Name == "" {
 		http.Error(w, "nome é obrigatório", http.StatusBadRequest)
 		return
@@ -58,6 +68,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A senha em texto puro nunca é gravada — só o hash bcrypt dela.
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		http.Error(w, "erro ao processar senha", http.StatusInternalServerError)
@@ -78,11 +89,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	h.startSession(w, userID, req.Name, req.Username)
 }
 
+// loginRequest é o formato esperado no corpo de POST /login.
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
+// ---------------------------------------------------------------------
+// POST /login — confere usuário e senha, e cria uma sessão nova.
+// ---------------------------------------------------------------------
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 
@@ -93,6 +108,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	userID, name, passwordHash, err := h.Repository.GetUserByUsername(req.Username)
 	if err != nil {
+		// Mesma mensagem tanto para "usuário não existe" quanto para
+		// "senha errada" — não dá pra um atacante descobrir logins
+		// válidos só testando usuários.
 		http.Error(w, "usuário ou senha inválidos", http.StatusUnauthorized)
 		return
 	}
@@ -105,6 +123,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	h.startSession(w, userID, name, req.Username)
 }
 
+// ---------------------------------------------------------------------
+// startSession gera um token aleatório, grava a sessão no banco e manda
+// o cookie HttpOnly na resposta. Usado tanto por Register quanto por
+// Login, já que os dois terminam com o usuário logado.
+// ---------------------------------------------------------------------
 func (h *AuthHandler) startSession(w http.ResponseWriter, userID int, name, username string) {
 	token, err := generateToken()
 	if err != nil {
@@ -119,6 +142,9 @@ func (h *AuthHandler) startSession(w http.ResponseWriter, userID int, name, user
 		return
 	}
 
+	// HttpOnly: o cookie não pode ser lido por JavaScript no navegador
+	// (protege contra roubo de sessão via XSS). SameSite=Lax é o padrão
+	// razoável para uma aplicação comum como essa.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    token,
@@ -132,11 +158,16 @@ func (h *AuthHandler) startSession(w http.ResponseWriter, userID int, name, user
 	json.NewEncoder(w).Encode(map[string]string{"name": name, "username": username})
 }
 
+// ---------------------------------------------------------------------
+// POST /logout — apaga a sessão no banco e expira o cookie no navegador.
+// ---------------------------------------------------------------------
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
 		h.Repository.DeleteSession(cookie.Value)
 	}
 
+	// Reenvia o mesmo cookie com data de expiração no passado — é assim
+	// que se "apaga" um cookie HttpOnly do lado do servidor.
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -149,6 +180,11 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ---------------------------------------------------------------------
+// GET /me — diz quem está logado a partir do cookie de sessão. Usado
+// pelo frontend ao carregar a página para saber se já existe uma sessão
+// válida, sem precisar pedir login de novo.
+// ---------------------------------------------------------------------
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
@@ -166,7 +202,12 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"name": name, "username": username})
 }
 
-// RequireAuth protege uma rota, exigindo um cookie de sessão válido.
+// ---------------------------------------------------------------------
+// RequireAuth é o middleware que protege as rotas de tarefas: recebe o
+// handler "de verdade" e devolve outro handler que primeiro confere se
+// existe um cookie de sessão válido, só chamando o handler original se
+// a checagem passar. Usado em main.go envolvendo /tasks e /tasks/{id}.
+// ---------------------------------------------------------------------
 func (h *AuthHandler) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(sessionCookieName)
@@ -184,6 +225,9 @@ func (h *AuthHandler) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// generateToken cria um token de sessão aleatório (32 bytes, em hexa) a
+// partir do gerador de números aleatórios criptograficamente seguro do
+// Go — não é um contador nem algo previsível.
 func generateToken() (string, error) {
 	b := make([]byte, 32)
 
