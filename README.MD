@@ -605,12 +605,17 @@ Como evolução futura do projeto:
 * [ ] Testes automatizados no frontend
 * [ ] Paginação
 * [ ] Autenticação de usuários
-* [ ] Docker
+* [x] Docker — feito nesta branch (`main`). Ver [DOCKER.md](DOCKER.md).
 * [ ] Deploy da aplicação
 * [ ] Banco PostgreSQL
 * [ ] Filtros e busca de tarefas
 * [ ] Confirmação antes da exclusão
 * [ ] Mensagens de sucesso e erro mais detalhadas
+
+> Esta branch (`main`) só contém a containerização com Docker. Os demais itens foram
+> implementados nas branches `melhorias` e `deploy` deste mesmo fork — ver
+> [BRANCHES.md](BRANCHES.md) para o que tem em cada uma, e como testar localmente antes de
+> trazer qualquer uma delas pro seu próprio repositório.
 
 ---
 
