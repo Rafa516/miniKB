@@ -15,9 +15,10 @@ import (
 func main() {
 
 	// ---------------------------------------------------------------
-	// Banco de dados: abre (ou cria) o arquivo SQLite, garante que as
-	// tabelas existam, aplica migrações pendentes e cria/atualiza o
-	// usuário administrador padrão (ver internal/database/database.go).
+	// Banco de dados: conecta ao PostgreSQL (endereço em DATABASE_URL),
+	// garante que as tabelas existam, aplica migrações pendentes e
+	// cria/atualiza o usuário administrador padrão (ver
+	// internal/database/database.go).
 	// ---------------------------------------------------------------
 	db, err := database.Connect()
 	if err != nil {
@@ -110,10 +111,21 @@ func main() {
 		}
 	}))
 
-	fmt.Println("Servidor rodando em http://localhost:8080")
+	// ---------------------------------------------------------------
+	// Porta: lida da variável de ambiente PORT, com "8080" como padrão
+	// para uso local. O Railway (e a maioria dos serviços de deploy)
+	// injeta essa variável automaticamente e espera que a aplicação
+	// escute nela — por isso não pode ficar fixa no código.
+	// ---------------------------------------------------------------
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("Servidor rodando em http://localhost:%s\n", port)
 
 	// enableCORS envolve todas as rotas acima antes de subir o servidor.
-	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
+	log.Fatal(http.ListenAndServe(":"+port, enableCORS(http.DefaultServeMux)))
 }
 
 // enableCORS libera as origens listadas em ALLOWED_ORIGINS (separadas por

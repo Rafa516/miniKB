@@ -606,8 +606,12 @@ Como evolução futura do projeto:
 * [x] Paginação
 * [x] Autenticação de usuários
 * [x] Docker
-* [ ] Deploy da aplicação — não incluído nesta rodada: depende de criar conta em um serviço de hospedagem (Render, Fly.io, Railway etc.), o que só o mantenedor do projeto pode fazer.
-* [ ] Banco PostgreSQL — não incluído nesta rodada: é uma migração de banco, não um ajuste pequeno. Ver [MELHORIAS.md](MELHORIAS.md).
+* [ ] Deploy da aplicação — a publicação em si depende de criar conta em um serviço de
+  hospedagem, o que só o mantenedor do projeto pode fazer. A aplicação já está **pronta pra
+  isso** nesta branch (`deploy`) — ver [DEPLOY-RAILWAY.md](DEPLOY-RAILWAY.md) para o passo a
+  passo de publicação no Railway.
+* [x] Banco PostgreSQL — feito na branch `deploy` (troca completa do SQLite pelo Postgres). Ver
+  [DEPLOY-RAILWAY.md](DEPLOY-RAILWAY.md).
 * [x] Filtros e busca de tarefas
 * [x] Confirmação antes da exclusão
 * [x] Mensagens de sucesso e erro mais detalhadas

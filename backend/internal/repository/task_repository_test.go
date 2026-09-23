@@ -2,35 +2,49 @@ package repository
 
 import (
 	"database/sql"
+	"os"
 	"testing"
 
 	"minikb/backend/internal/models"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// newTestDB conecta num Postgres real (endereço em DATABASE_URL — ver
+// docker-compose.yml, que sobe um Postgres local para isso) e garante uma
+// tabela "tasks" limpa para cada teste. Diferente do SQLite em memória,
+// aqui a conexão é compartilhada entre os testes, então cada um limpa a
+// tabela ao final (t.Cleanup) para não vazar dados de um teste pro outro.
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", ":memory:")
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL não definida — suba o Postgres local (docker compose up -d postgres) para rodar estes testes")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		t.Fatalf("erro ao abrir banco de teste: %v", err)
+		t.Fatalf("erro ao abrir conexão com o banco de teste: %v", err)
 	}
 
 	_, err = db.Exec(`
-		CREATE TABLE tasks (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+		CREATE TABLE IF NOT EXISTS tasks (
+			id SERIAL PRIMARY KEY,
 			title TEXT NOT NULL,
 			description TEXT,
 			status TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
 	`)
 	if err != nil {
 		t.Fatalf("erro ao criar tabela de teste: %v", err)
 	}
 
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		db.Exec(`TRUNCATE tasks RESTART IDENTITY`)
+		db.Close()
+	})
 
 	return db
 }

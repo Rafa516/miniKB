@@ -6,36 +6,47 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"minikb/backend/internal/models"
 	"minikb/backend/internal/repository"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// newTestHandler conecta num Postgres real (DATABASE_URL — ver
+// docker-compose.yml) com a tabela "tasks" limpa para cada teste.
 func newTestHandler(t *testing.T) *TaskHandler {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", ":memory:")
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL não definida — suba o Postgres local (docker compose up -d postgres) para rodar estes testes")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		t.Fatalf("erro ao abrir banco de teste: %v", err)
+		t.Fatalf("erro ao abrir conexão com o banco de teste: %v", err)
 	}
 
 	_, err = db.Exec(`
-		CREATE TABLE tasks (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+		CREATE TABLE IF NOT EXISTS tasks (
+			id SERIAL PRIMARY KEY,
 			title TEXT NOT NULL,
 			description TEXT,
 			status TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
 	`)
 	if err != nil {
 		t.Fatalf("erro ao criar tabela de teste: %v", err)
 	}
 
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		db.Exec(`TRUNCATE tasks RESTART IDENTITY`)
+		db.Close()
+	})
 
 	return NewTaskHandler(repository.NewTaskRepository(db))
 }

@@ -25,28 +25,31 @@ func NewAuthRepository(db *sql.DB) *AuthRepository {
 
 // ---------------------------------------------------------------------
 // CreateUser insere um usuário novo com a senha já em hash (o hashing em
-// si é responsabilidade do handler, não do repositório).
+// si é responsabilidade do handler, não do repositório). Usa "RETURNING
+// id" (Postgres) em vez de Result.LastInsertId(), que o driver do
+// Postgres não implementa.
 // ---------------------------------------------------------------------
 func (r *AuthRepository) CreateUser(name, username, passwordHash string) (int, error) {
-	result, err := r.DB.Exec(
-		`INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?)`,
+	var id int
+
+	err := r.DB.QueryRow(
+		`INSERT INTO users (name, username, password_hash) VALUES ($1, $2, $3) RETURNING id`,
 		name, username, passwordHash,
-	)
+	).Scan(&id)
 
 	if err != nil {
-		// SQLite não tem um tipo de erro específico para violação de
-		// UNIQUE; a forma prática de detectar é checar o texto da
+		// O driver do Postgres sinaliza violação de UNIQUE com o código
+		// "23505"; como não queremos depender de um pacote extra só para
+		// checar esse código, a forma prática é procurar pelo texto da
 		// mensagem de erro.
-		if strings.Contains(err.Error(), "UNIQUE") {
+		if strings.Contains(err.Error(), "23505") || strings.Contains(err.Error(), "unique") {
 			return 0, ErrUsernameTaken
 		}
 
 		return 0, err
 	}
 
-	id, err := result.LastInsertId()
-
-	return int(id), err
+	return id, nil
 }
 
 // ---------------------------------------------------------------------
@@ -55,7 +58,7 @@ func (r *AuthRepository) CreateUser(name, username, passwordHash string) (int, e
 // ---------------------------------------------------------------------
 func (r *AuthRepository) GetUserByUsername(username string) (id int, name string, passwordHash string, err error) {
 	err = r.DB.QueryRow(
-		`SELECT id, name, password_hash FROM users WHERE username = ?`,
+		`SELECT id, name, password_hash FROM users WHERE username = $1`,
 		username,
 	).Scan(&id, &name, &passwordHash)
 
@@ -68,7 +71,7 @@ func (r *AuthRepository) GetUserByUsername(username string) (id int, name string
 // ---------------------------------------------------------------------
 func (r *AuthRepository) CreateSession(token string, userID int, expiresAt time.Time) error {
 	_, err := r.DB.Exec(
-		`INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`,
+		`INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)`,
 		token, userID, expiresAt,
 	)
 
@@ -85,7 +88,7 @@ func (r *AuthRepository) GetSession(token string) (userID int, name string, user
 		SELECT sessions.user_id, users.name, users.username
 		FROM sessions
 		JOIN users ON users.id = sessions.user_id
-		WHERE sessions.token = ? AND sessions.expires_at > ?
+		WHERE sessions.token = $1 AND sessions.expires_at > $2
 	`, token, time.Now()).Scan(&userID, &name, &username)
 
 	return userID, name, username, err
@@ -95,7 +98,7 @@ func (r *AuthRepository) GetSession(token string) (userID int, name string, user
 // DeleteSession remove uma sessão (usado no logout).
 // ---------------------------------------------------------------------
 func (r *AuthRepository) DeleteSession(token string) error {
-	_, err := r.DB.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+	_, err := r.DB.Exec(`DELETE FROM sessions WHERE token = $1`, token)
 
 	return err
 }

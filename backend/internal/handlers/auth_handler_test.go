@@ -6,42 +6,54 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"minikb/backend/internal/repository"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// newTestAuthDB conecta num Postgres real (DATABASE_URL — ver
+// docker-compose.yml) com as tabelas "users"/"sessions" limpas para cada
+// teste.
 func newTestAuthDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, err := sql.Open("sqlite", ":memory:")
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL não definida — suba o Postgres local (docker compose up -d postgres) para rodar estes testes")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		t.Fatalf("erro ao abrir banco de teste: %v", err)
+		t.Fatalf("erro ao abrir conexão com o banco de teste: %v", err)
 	}
 
 	_, err = db.Exec(`
-		CREATE TABLE users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+		CREATE TABLE IF NOT EXISTS users (
+			id SERIAL PRIMARY KEY,
 			name TEXT NOT NULL,
 			username TEXT NOT NULL UNIQUE,
 			password_hash TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-		CREATE TABLE sessions (
+		CREATE TABLE IF NOT EXISTS sessions (
 			token TEXT PRIMARY KEY,
-			user_id INTEGER NOT NULL,
-			expires_at DATETIME NOT NULL
+			user_id INTEGER NOT NULL REFERENCES users(id),
+			expires_at TIMESTAMPTZ NOT NULL
 		);
 	`)
 	if err != nil {
 		t.Fatalf("erro ao criar tabelas de teste: %v", err)
 	}
 
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		db.Exec(`TRUNCATE sessions, users RESTART IDENTITY CASCADE`)
+		db.Close()
+	})
 
 	return db
 }
@@ -56,7 +68,7 @@ func newTestAuthHandler(t *testing.T, name, username, password string) *AuthHand
 		t.Fatalf("erro ao gerar hash: %v", err)
 	}
 
-	if _, err := db.Exec(`INSERT INTO users (name, username, password_hash) VALUES (?, ?, ?)`, name, username, string(hash)); err != nil {
+	if _, err := db.Exec(`INSERT INTO users (name, username, password_hash) VALUES ($1, $2, $3)`, name, username, string(hash)); err != nil {
 		t.Fatalf("erro ao inserir usuário de teste: %v", err)
 	}
 

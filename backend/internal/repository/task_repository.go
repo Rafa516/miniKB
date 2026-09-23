@@ -8,7 +8,7 @@ import (
 
 // TaskRepository é a única camada do código que sabe escrever SQL para
 // tarefas. Os handlers chamam esses métodos sem saber que por baixo
-// existe SQLite.
+// existe PostgreSQL.
 type TaskRepository struct {
 	DB *sql.DB
 }
@@ -73,7 +73,7 @@ func (r *TaskRepository) GetPage(page, pageSize int) ([]models.Task, int, error)
 		SELECT id, title, description, status, created_at
 		FROM tasks
 		ORDER BY id DESC
-		LIMIT ? OFFSET ?
+		LIMIT $1 OFFSET $2
 	`, pageSize, offset)
 
 	if err != nil {
@@ -115,40 +115,16 @@ func (r *TaskRepository) GetPage(page, pageSize int) ([]models.Task, int, error)
 
 // ---------------------------------------------------------------------
 // Create insere uma tarefa nova e devolve ela já com o ID e a data de
-// criação gerados pelo banco.
+// criação gerados pelo banco. Usa "RETURNING" (recurso do Postgres) para
+// pegar esses valores na mesma ida ao banco — diferente do driver do
+// SQLite, o driver do Postgres não implementa Result.LastInsertId().
 // ---------------------------------------------------------------------
 func (r *TaskRepository) Create(task models.Task) (models.Task, error) {
-	query := `
+	err := r.DB.QueryRow(`
 		INSERT INTO tasks (title, description, status)
-		VALUES (?, ?, ?)
-	`
-
-	result, err := r.DB.Exec(
-		query,
-		task.Title,
-		task.Description,
-		task.Status,
-	)
-
-	if err != nil {
-		return models.Task{}, err
-	}
-
-	// AUTOINCREMENT: o ID da linha recém-inserida.
-	id, err := result.LastInsertId()
-	if err != nil {
-		return models.Task{}, err
-	}
-
-	task.ID = int(id)
-
-	// created_at é preenchido pelo banco (DEFAULT CURRENT_TIMESTAMP), então
-	// precisa de uma segunda consulta para saber o valor exato gravado.
-	err = r.DB.QueryRow(`
-		SELECT created_at
-		FROM tasks
-		WHERE id = ?
-	`, id).Scan(&task.CreatedAt)
+		VALUES ($1, $2, $3)
+		RETURNING id, created_at
+	`, task.Title, task.Description, task.Status).Scan(&task.ID, &task.CreatedAt)
 
 	if err != nil {
 		return models.Task{}, err
@@ -163,8 +139,8 @@ func (r *TaskRepository) Create(task models.Task) (models.Task, error) {
 func (r *TaskRepository) Update(id int, task models.Task) error {
 	query := `
 		UPDATE tasks
-		SET title = ?, description = ?, status = ?
-		WHERE id = ?
+		SET title = $1, description = $2, status = $3
+		WHERE id = $4
 	`
 
 	_, err := r.DB.Exec(
@@ -184,7 +160,7 @@ func (r *TaskRepository) Update(id int, task models.Task) error {
 func (r *TaskRepository) Delete(id int) error {
 	query := `
 		DELETE FROM tasks
-		WHERE id = ?
+		WHERE id = $1
 	`
 
 	_, err := r.DB.Exec(query, id)

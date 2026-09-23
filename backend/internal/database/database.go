@@ -2,21 +2,35 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
-	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
-	_ "modernc.org/sqlite"
+	// Driver do PostgreSQL em Go puro (sem CGO). O "_" na frente importa
+	// o pacote só pelo efeito colateral de registrar o driver "pgx" no
+	// database/sql — o código aqui não chama nada dele diretamente.
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// Connect abre (criando se não existir) o arquivo kanban.db e deixa o
-// banco pronto para uso: cria as tabelas que faltarem, aplica migrações
-// em bancos mais antigos e garante que o usuário administrador exista.
+// Connect abre a conexão com o PostgreSQL (endereço vindo da variável de
+// ambiente DATABASE_URL — no Railway, isso é preenchido automaticamente
+// quando o addon de Postgres é conectado ao serviço) e deixa o banco
+// pronto para uso: cria as tabelas que faltarem, aplica migrações em
+// bancos mais antigos e garante que o usuário administrador exista.
 func Connect() (*sql.DB, error) {
-	db, err := sql.Open("sqlite", "kanban.db")
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return nil, fmt.Errorf("variável de ambiente DATABASE_URL não definida")
+	}
+
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		return nil, err
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("não foi possível conectar ao Postgres: %w", err)
 	}
 
 	if err := createTables(db); err != nil {
@@ -40,26 +54,25 @@ func Connect() (*sql.DB, error) {
 func createTables(db *sql.DB) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS tasks (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		id SERIAL PRIMARY KEY,
 		title TEXT NOT NULL,
 		description TEXT,
 		status TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 	);
 
 	CREATE TABLE IF NOT EXISTS users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		id SERIAL PRIMARY KEY,
 		name TEXT NOT NULL,
 		username TEXT NOT NULL UNIQUE,
 		password_hash TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 	);
 
 	CREATE TABLE IF NOT EXISTS sessions (
 		token TEXT PRIMARY KEY,
-		user_id INTEGER NOT NULL,
-		expires_at DATETIME NOT NULL,
-		FOREIGN KEY (user_id) REFERENCES users(id)
+		user_id INTEGER NOT NULL REFERENCES users(id),
+		expires_at TIMESTAMPTZ NOT NULL
 	);
 	`
 
@@ -69,11 +82,12 @@ func createTables(db *sql.DB) error {
 }
 
 // migrate ajusta bancos criados antes da coluna "name" existir na tabela
-// users (CREATE TABLE IF NOT EXISTS não altera tabelas já existentes). Em um
-// banco novo a coluna já nasce criada e o ALTER abaixo só é ignorado.
+// users. Diferente do SQLite, o Postgres já suporta "ADD COLUMN IF NOT
+// EXISTS" nativamente, então não precisa de nenhum truque para detectar
+// se a coluna já existe.
 func migrate(db *sql.DB) error {
-	_, err := db.Exec(`ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''`)
-	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+	_, err := db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''`)
+	if err != nil {
 		return err
 	}
 
@@ -82,11 +96,11 @@ func migrate(db *sql.DB) error {
 	return err
 }
 
-// seedAdminUser garante que exista um usuário administrador padrão, definido
-// pelas variáveis de ambiente ADMIN_USERNAME/ADMIN_PASSWORD (com valores
-// padrão para uso local), para já dar acesso de cara. Além dele, novos
-// usuários podem se cadastrar normalmente pela tela de cadastro (ver
-// AuthRepository.CreateUser / AuthHandler.Register).
+// seedAdminUser garante que exista um usuário administrador padrão,
+// definido pelas variáveis de ambiente ADMIN_USERNAME/ADMIN_PASSWORD (com
+// valores padrão para uso local), para já dar acesso de cara. Além dele,
+// novos usuários podem se cadastrar normalmente pela tela de cadastro
+// (ver AuthRepository.CreateUser / AuthHandler.Register).
 func seedAdminUser(db *sql.DB) error {
 	username := os.Getenv("ADMIN_USERNAME")
 	if username == "" {
@@ -105,8 +119,8 @@ func seedAdminUser(db *sql.DB) error {
 
 	_, err = db.Exec(`
 		INSERT INTO users (name, username, password_hash)
-		VALUES (?, ?, ?)
-		ON CONFLICT(username) DO UPDATE SET password_hash = excluded.password_hash
+		VALUES ($1, $2, $3)
+		ON CONFLICT (username) DO UPDATE SET password_hash = excluded.password_hash
 	`, "Administrador", username, string(hash))
 
 	return err

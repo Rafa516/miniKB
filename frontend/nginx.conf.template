@@ -1,5 +1,10 @@
 server {
-    listen 80;
+    # ${PORT} é substituído pelo próprio entrypoint da imagem oficial do
+    # Nginx (via envsubst, script padrão em /docker-entrypoint.d/) a
+    # partir da variável de ambiente PORT — necessário porque o Railway
+    # injeta essa variável e espera que o container escute nela. Localmente
+    # (Docker Compose), o padrão continua sendo 80.
+    listen ${PORT};
     server_name _;
 
     # The app is built with base '/miniKB/' (see vite.config.js), so it
