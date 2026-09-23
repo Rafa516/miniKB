@@ -36,18 +36,26 @@ deixar registrado o que se ganha/perde optando por outra.
 
 ## Render
 
+Guia completo de deploy nesta plataforma: [DEPLOY-RENDER.md](DEPLOY-RENDER.md).
+
 **Pontos altos**
-- Plano free permanente de verdade (sem cartão), inclusive pra banco Postgres (com limite de
-  tempo de vida do banco free — 90 dias antes de precisar upgrade ou recriar).
+- Plano free de verdade (sem cartão), inclusive pra banco Postgres (com limite de tempo de vida
+  do banco free — 30 dias antes de precisar upgrade ou recriar, ver abaixo).
 - Configuração parecida com o Railway: detecta Dockerfile, painel simples, suporta monorepo via
   "Root Directory" por serviço.
+- URLs públicas são previsíveis pelo nome do serviço
+  (`https://<nome-do-serviço>.onrender.com`), diferente do Railway — dá pra configurar as
+  variáveis cruzadas (endereço do backend no frontend e vice-versa) sem precisar gerar o
+  domínio primeiro.
 - Bom para portfólio/demonstração, já que não exige cartão.
 
 **Pontos baixos**
-- Serviços no plano free **dormem** após ~15 minutos sem tráfego, e o primeiro acesso depois
-  disso demora bastante (30s–1min) pra "acordar" — péssima experiência se for mostrar a
+- Serviços no plano free **dormem** após 15 minutos sem tráfego, e o primeiro acesso depois
+  disso demora cerca de 1 minuto pra "acordar" — péssima experiência se for mostrar a
   aplicação pra alguém sem avisar.
-- Banco Postgres free expira em 90 dias (precisa recriar ou pagar).
+- Banco Postgres free expira **30 dias** após criado (reduzido de 90 para 30 dias pelo Render
+  em 2024, política ainda em vigor) — depois disso, 14 dias de prazo antes de apagar os dados
+  de vez, se não fizer upgrade.
 
 ## Fly.io
 
@@ -126,6 +134,6 @@ alto esperado):
 - **Railway** (já preparado) é o equilíbrio mais simples entre "fácil de configurar" e "fica
   sempre no ar" — o ponto fraco é não ser gratuito pra sempre.
 - Se o objetivo for **nunca gastar nada**, **Render** é a alternativa mais direta — só aceitar
-  que a aplicação demora pra responder após ficar parada, e que o banco expira em 90 dias.
+  que a aplicação demora pra responder após ficar parada, e que o banco expira em 30 dias.
 - Se quiser aprender uma ferramenta mais "séria"/usada no mercado, **Google Cloud Run** é a que
   mais ensina sobre infraestrutura de verdade, ao custo de bem mais configuração inicial.
