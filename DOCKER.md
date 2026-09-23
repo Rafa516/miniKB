@@ -1,8 +1,9 @@
 # Docker — guia passo a passo (para quem nunca usou)
 
-Este documento explica, com calma, como rodar o Mini Kanban usando Docker. Nenhum arquivo de
-código da aplicação (`.go`, `.jsx`, `.js`, etc.) foi alterado — só foram adicionados os
-arquivos de configuração do Docker, listados na seção [Arquivos adicionados](#arquivos-adicionados).
+Este documento explica, com calma, como rodar o Mini Kanban usando Docker. A containerização em
+si não exigiu alterar código da aplicação — só foram adicionados os arquivos de configuração do
+Docker, listados na seção 6. Duas pequenas exceções, feitas depois, estão explicadas e
+justificadas na seção 9: [Acessando de outra máquina na rede](#9-acessando-de-outra-máquina-na-rede).
 
 ## Índice
 
@@ -14,6 +15,7 @@ arquivos de configuração do Docker, listados na seção [Arquivos adicionados]
 6. [O que cada arquivo novo faz](#6-o-que-cada-arquivo-novo-faz)
 7. [Perguntas frequentes / problemas comuns](#7-perguntas-frequentes--problemas-comuns)
 8. [Detalhes técnicos (para quem quiser entender o "porquê")](#8-detalhes-técnicos-para-quem-quiser-entender-o-porquê)
+9. [Acessando de outra máquina na rede](#9-acessando-de-outra-máquina-na-rede)
 
 ---
 
@@ -282,3 +284,52 @@ Esta configuração foi testada localmente:
 - Dados do SQLite persistem após recriar os containers (`docker compose up --build` de novo).
 - A interface carrega corretamente em `http://localhost:5173` (com redirecionamento para
   `/miniKB/`).
+
+## 9. Acessando de outra máquina na rede
+
+Por padrão, o Mini Kanban só funciona corretamente quando acessado como `http://localhost:5173`,
+no mesmo computador onde o Docker está rodando. Tentar abrir pelo IP da máquina (por exemplo,
+`http://10.40.68.69:5173`, a partir de outro computador da rede) dava erro de "Não foi possível
+carregar as tarefas.", por dois motivos:
+
+1. O endereço do backend usado pelo site (`http://localhost:8080`) estava fixo dentro do código
+   do frontend. Quando o site é aberto a partir de outra máquina, "localhost" naquele contexto é
+   a própria máquina de quem está acessando — não o servidor —, então a chamada nunca chegava
+   em lugar nenhum.
+2. O backend só aceitava pedidos vindos exatamente de `http://localhost:5173` (checagem de CORS
+   fixa no código). Um acesso vindo de outro endereço era bloqueado pelo navegador.
+
+Para resolver isso, **foram feitas duas pequenas alterações de código** (documentadas com
+detalhes na mensagem do commit correspondente):
+
+- **[`frontend/src/services/api.js`](frontend/src/services/api.js):** em vez de sempre apontar
+  pra `http://localhost:8080`, o endereço do backend agora é calculado a partir do endereço que
+  a pessoa usou pra abrir o site (`window.location.hostname`). Assim, funciona automaticamente
+  tanto em `localhost` quanto em qualquer IP da rede, sem precisar reconfigurar nada.
+- **[`backend/cmd/server/main.go`](backend/cmd/server/main.go):** a origem liberada no CORS
+  deixou de ser um valor fixo no código e passou a vir da variável de ambiente
+  `ALLOWED_ORIGINS` (lista separada por vírgula), com o mesmo valor de antes
+  (`http://localhost:5173`) como padrão — ou seja, quem não mexer em nada continua com o
+  comportamento de sempre.
+
+### Como habilitar o acesso pela rede
+
+1. Descubra o IP da máquina que roda o Docker (no Windows: `ipconfig`, procure por "Endereço
+   IPv4").
+2. Crie um arquivo chamado `.env` na raiz do projeto (pode copiar o `.env.example` que já existe)
+   com o conteúdo:
+
+   ```text
+   ALLOWED_ORIGINS=http://localhost:5173,http://<seu-ip-aqui>:5173
+   ```
+
+3. Suba os containers de novo:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+4. Nas outras máquinas da rede (mesma rede local/Wi-Fi), acesse `http://<seu-ip>:5173`.
+
+O arquivo `.env` não é enviado ao Git (está no `.gitignore`), porque o IP é específico da sua
+máquina/rede — cada pessoa que for rodar o projeto configura o seu.

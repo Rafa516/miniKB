@@ -1,8 +1,12 @@
 # Sugestões de melhoria
 
 Anotações levantadas durante a containerização do projeto (ver [DOCKER.md](DOCKER.md)),
-enquanto testava a aplicação rodando em Docker. Nenhuma dessas mudanças foi aplicada —
-é só a lista para repassar pro pessoal que mantém o projeto.
+enquanto testava a aplicação rodando em Docker. Nenhuma dessas mudanças foi aplicada — é só a
+lista para repassar pro pessoal que mantém o projeto.
+
+> A única exceção é o item "CORS e porta fixos no código" logo abaixo: essa parte específica
+> *foi* corrigida, porque sem isso a aplicação não conseguia ser acessada de outra máquina na
+> rede. Os detalhes estão na seção 9 do [DOCKER.md](DOCKER.md#9-acessando-de-outra-máquina-na-rede).
 
 ## 🐞 Bug: a tela trava permanentemente após qualquer erro
 
@@ -70,12 +74,13 @@ algo mais bonito) antes de chamar `onDelete`.
   os métodos `Update` e `Delete` não checam `RowsAffected()`. Se o `id` não existir, a API
   mesmo assim responde `204 No Content` como se tivesse dado certo, em vez de `404 Not Found`.
 
-- **CORS e porta fixos no código**: em
-  [`backend/cmd/server/main.go`](backend/cmd/server/main.go), tanto a porta (`8080`) quanto a
-  origem liberada no CORS (`http://localhost:5173`) estão hardcoded. Isso é justamente o que
-  obrigou a fixar as portas do Docker Compose (ver DOCKER.md). Ler esses valores de variáveis
-  de ambiente (com esses mesmos valores como padrão) deixaria o backend mais flexível para
-  rodar em outras portas/ambientes sem precisar recompilar.
+- ~~**CORS e porta fixos no código**~~ — **feito.** Em
+  [`backend/cmd/server/main.go`](backend/cmd/server/main.go), a origem liberada no CORS estava
+  hardcoded (`http://localhost:5173`), o que impedia acessar o app de outra máquina na rede.
+  Isso foi corrigido: a lista de origens permitidas agora vem da variável de ambiente
+  `ALLOWED_ORIGINS`, mantendo `http://localhost:5173` como padrão. Ver seção 9 do
+  [DOCKER.md](DOCKER.md#9-acessando-de-outra-máquina-na-rede). A porta (`8080`) continua fixa no
+  código — não foi mexida, pois não era necessária pra esse caso de uso.
 
 - **Sem testes automatizados**: já está listado como melhoria futura no `README.MD`, mas vale
   reforçar — nem backend nem frontend têm testes hoje.

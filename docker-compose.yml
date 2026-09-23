@@ -2,9 +2,16 @@ services:
   backend:
     build: ./backend
     ports:
-      # backend/cmd/server/main.go only allows CORS from http://localhost:5173,
-      # so the host-side ports below must stay 8080/5173.
+      # The frontend is served on port 5173 (see the frontend service below);
+      # ALLOWED_ORIGINS must match whatever host:port the browser loads it from.
       - "8080:8080"
+    environment:
+      # Comma-separated list of origins allowed by CORS. Defaults to just
+      # http://localhost:5173. To also allow access from other machines on
+      # the network, set ALLOWED_ORIGINS (e.g. via a .env file) to
+      # "http://localhost:5173,http://<your-machine-ip>:5173"
+      # (see DOCKER.md for details).
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
     volumes:
       - backend-data:/app/data
     restart: unless-stopped
